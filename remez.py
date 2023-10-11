@@ -40,7 +40,7 @@ class Remez:
         current_error = -1
         result = IterationResult(reference, None, None)
         for i in range(0, 10):
-            result = remez.one_iteration(function, basis, interval_start, interval_end, result.new_reference)
+            result = self.one_iteration(function, basis, interval_start, interval_end, result.new_reference)
             new_error = result.error
             if current_error == -1:
                 current_error = new_error
@@ -145,16 +145,3 @@ class Remez:
         sum_val = approx(x)
         function_val = function(x)
         return function_val - sum_val
-
-
-if __name__ == '__main__':
-    remez = Remez()
-    function = lambda x: pow(x, 15)
-    interval_start = -2
-    interval_end = 2
-    result = remez.calculate_approximation_monomial_basis(function, 4, interval_start, interval_end)
-
-    x = np.linspace(interval_start, interval_end, 100)
-    plt.plot(x, result.approx(x), 'red')
-    plt.plot(x, function(x), 'blue')
-    plt.show()
