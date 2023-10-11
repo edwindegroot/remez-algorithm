@@ -1,9 +1,14 @@
 from __future__ import division
 from matplotlib import pyplot as plt
-import bisect
 
 import numpy as np
 import scipy
+
+
+class RemezResult:
+    def __init__(self, error, approx):
+        self.error = error
+        self.approx = approx
 
 
 class IterationResult:
@@ -14,6 +19,39 @@ class IterationResult:
 
 
 class Remez:
+    def calculate_approximation_monomial_basis(
+            self,
+            function,
+            polynomial_degree,
+            interval_start,
+            interval_end
+    ):
+        basis = [None]
+        for i in range(0, polynomial_degree + 1):
+            basis.append(lambda x, i=i: pow(x, i))
+        return self.calculate_approximation(function, basis, interval_start, interval_end)
+
+    def calculate_approximation(self,
+                                function,
+                                basis,
+                                interval_start,
+                                interval_end):
+        reference = np.linspace(interval_start, interval_end, len(basis))
+        current_error = -1
+        result = IterationResult(reference, None, None)
+        for i in range(0, 10):
+            result = remez.one_iteration(function, basis, interval_start, interval_end, result.new_reference)
+            new_error = result.error
+            if current_error == -1:
+                current_error = new_error
+            else:
+                if new_error >= current_error or current_error - new_error < 0.000000001:
+                    break
+                else:
+                    current_error = new_error
+        remez_result = RemezResult(result.error, result.approx)
+        return remez_result
+
     def one_iteration(self,
                       function,
                       basis,
@@ -25,49 +63,31 @@ class Remez:
         residue_function = lambda x: self.residue_function(x, function, approx_function)
         abs_residue_function = lambda x: abs(residue_function(x))
         abs_max_pos_of_residue_function = self.find_max_pos(abs_residue_function, interval_start, interval_end)
-        abs_max_of_residue_function = abs_residue_function(abs_max_pos_of_residue_function)
-        print(abs_max_of_residue_function)
-        z_array = [interval_start]
-        for i in range(1, len(reference)):
-            z_array.append(self.find_root(reference[i - 1], reference[i], residue_function))
-        z_array.append(interval_end)
+        max_error = abs_residue_function(abs_max_pos_of_residue_function)
+        z_array = self.get_zeroes_array(residue_function, reference, interval_start, interval_end)
+        new_reference = self.calculate_new_reference(z_array, residue_function, reference)
+        result = IterationResult(new_reference, max_error, approx_function)
+        return result
 
+    def calculate_new_reference(self, z_array, residue_function, reference):
         new_reference = []
-        done = False
         for i in range(0, len(reference)):
-            section_start = z_array[i]
-            section_end = z_array[i + 1]
-            sign = np.sign(residue_function(reference[i]))
-            signed_residue_function = lambda x: sign * residue_function(x)
-            interval_max_pos = self.find_max_pos(signed_residue_function, section_start, section_end)
+            signed_residue_function = lambda x: np.sign(residue_function(reference[i])) * residue_function(x)
+            interval_max_pos = self.find_max_pos(signed_residue_function, z_array[i], z_array[i + 1])
             current_value = signed_residue_function(interval_max_pos)
-            if abs_max_of_residue_function <= current_value:
-                done = True
             val_at_ref_i = signed_residue_function(reference[i])
             if val_at_ref_i > current_value:
                 new_reference.append(reference[i])
             else:
                 new_reference.append(interval_max_pos)
-        if done:
-            # One of the indices of the new basis gave a higher value than the computed global max. Done with this
-            # iteration.
-            return new_reference
-        # Otherwise, insert the position of the global max into the new reference correctly
-        bisect.insort(new_reference, abs_max_pos_of_residue_function)
-        index_to_remove = -1
-        for i in range(0, len(new_reference) - 1):
-            val_i = residue_function(new_reference[i])
-            val_i_plus_one = residue_function(new_reference[i + 1])
-            if np.sign(val_i) == np.sign(val_i_plus_one):
-                if abs(val_i) > abs(val_i_plus_one):
-                    index_to_remove = i + 1
-                    break
-                else:
-                    index_to_remove = i
-        if index_to_remove == -1:
-            print('ERROR')
-        del new_reference[index_to_remove]
         return new_reference
+
+    def get_zeroes_array(self, residue_function, reference, interval_start, interval_end):
+        z_array = [interval_start]
+        for i in range(1, len(reference)):
+            z_array.append(self.find_root(reference[i - 1], reference[i], residue_function))
+        z_array.append(interval_end)
+        return z_array
 
     def approx_function(self, x, solution, basis):
         result = 0
@@ -129,17 +149,12 @@ class Remez:
 
 if __name__ == '__main__':
     remez = Remez()
-    function = lambda x: abs(pow(x, 9))
-    basis = [
-        None, # Dummy value to fill up g0
-        lambda x: 1,
-        lambda x: x,
-        lambda x: pow(x, 2),
-        lambda x: pow(x, 3)
-    ]
-    interval_start = -1
-    interval_end = 1
-    reference = np.linspace(interval_start, interval_end, len(basis))
+    function = lambda x: pow(x, 15)
+    interval_start = -2
+    interval_end = 2
+    result = remez.calculate_approximation_monomial_basis(function, 4, interval_start, interval_end)
 
-    for i in range(0, 10):
-        reference = remez.one_iteration(function, basis, interval_start, interval_end, reference)
+    x = np.linspace(interval_start, interval_end, 100)
+    plt.plot(x, result.approx(x), 'red')
+    plt.plot(x, function(x), 'blue')
+    plt.show()
